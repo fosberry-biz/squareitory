@@ -14,16 +14,11 @@ const PLAYERS = [
 // Indices of players actually in this game (set from first SSE state)
 let activePlayers = PLAYER_COUNT === 2 ? [0, 2] : [0, 1, 2, 3];
 
-let serverState    = null;
-let previewBoard   = null;
-let pending        = [];   // actions queued this turn
-let selected       = null; // {r, c} of selected cell
-let logs           = [];
-let _pendingSelect = null; // debounce state for double-click-to-reinforce
-
-function _cancelPendingSelect() {
-  if (_pendingSelect) { clearTimeout(_pendingSelect.timer); _pendingSelect = null; }
-}
+let serverState  = null;
+let previewBoard = null;
+let pending      = [];   // actions queued this turn
+let selected     = null; // {r, c} of selected cell
+let logs         = [];
 
 // rules panel toggle
 document.getElementById('rules-btn').onclick = () => {
@@ -168,15 +163,26 @@ function click(r, c) {
   const cell   = board[r][c];
   if (cell.blocked) return;
 
-  // cancel pending select when clicking a different cell
-  if (_pendingSelect && !(_pendingSelect.r === r && _pendingSelect.c === c)) {
-    _cancelPendingSelect();
-  }
-
   if (selected) {
     const { r: sr, c: sc } = selected;
 
-    if (sr === r && sc === c) { selected = null; render(); return; }
+    // clicking the same cell
+    if (sr === r && sc === c) {
+      // reinforce if this is own stack in starting zone
+      if (PLAYERS[player].startFn(r, c) && cell.owner === player && cell.n > 0) {
+        const action = { type: 'place', r, c };
+        const res = applyAction(board, action, player);
+        if (res.error) { logMsg(`Error: ${res.error}`); selected = null; render(); return; }
+        logMsg(`${PLAYERS[player].name} reinforces (${r},${c}) — stack ${res.board[r][c].n}`);
+        pending.push(action);
+        previewBoard = res.board;
+        selected = null;
+        if (actionsLeft() === 0) submitTurn();
+        else render();
+        return;
+      }
+      selected = null; render(); return;
+    }
 
     if (adj(sr, sc, r, c)) {
       const src = board[sr][sc];
@@ -213,35 +219,8 @@ function click(r, c) {
     selected = null; render(); return;
   }
 
-  // select own stack; double-click/tap on starting-zone cell to reinforce
+  // select own stack immediately
   if (cell.owner === player && cell.n > 0) {
-    if (PLAYERS[player].startFn(r, c)) {
-      if (_pendingSelect && _pendingSelect.r === r && _pendingSelect.c === c) {
-        // second click within window — reinforce
-        _cancelPendingSelect();
-        const action = { type: 'place', r, c };
-        const res = applyAction(board, action, player);
-        if (res.error) { logMsg(`Error: ${res.error}`); return; }
-        logMsg(`${PLAYERS[player].name} reinforces (${r},${c}) — stack ${res.board[r][c].n}`);
-        pending.push(action);
-        previewBoard = res.board;
-        selected = null;
-        if (actionsLeft() === 0) submitTurn();
-        else render();
-        return;
-      }
-      // first click — wait to see if double-click arrives
-      _cancelPendingSelect();
-      _pendingSelect = {
-        r, c,
-        timer: setTimeout(() => {
-          _pendingSelect = null;
-          selected = { r, c };
-          render();
-        }, 280)
-      };
-      return;
-    }
     selected = { r, c }; render(); return;
   }
 
@@ -446,10 +425,9 @@ es.onmessage = e => {
 
   serverState   = JSON.parse(e.data);
   activePlayers = serverState.player_count === 2 ? [0, 2] : [0, 1, 2, 3];
-  pending       = [];
-  previewBoard  = copyBoard(serverState.board);
-  selected      = null;
-  _cancelPendingSelect();
+  pending      = [];
+  previewBoard = copyBoard(serverState.board);
+  selected     = null;
   render();
 
   const { status, cur_player, winner } = serverState;

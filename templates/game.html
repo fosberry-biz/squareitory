@@ -2,45 +2,50 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Squareitory</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
-<div id="main">
-  <h1>SQUAREITORY</h1>
-  <div id="player-indicator"></div>
-  <div id="spectator-badge" style="display:none">Spectating</div>
-  <div id="status">Connecting…</div>
-  <div id="waiting-info" style="display:none">
-    <span>Join code: <code id="waiting-join-code"></code></span>
-    <button id="copy-join-btn">Copy code</button>
-  </div>
-  <div class="board-wrapper">
-    <div class="edge-bar edge-bar-n" id="edge-bar-n">
-      <div class="bar-fill"></div>
-      <div class="bar-label"></div>
-    </div>
-    <div class="edge-bar edge-bar-w" id="edge-bar-w">
-      <div class="bar-fill"></div>
-      <div class="bar-label"></div>
-    </div>
-    <div id="grid"></div>
-    <div class="edge-bar edge-bar-e" id="edge-bar-e">
-      <div class="bar-fill"></div>
-      <div class="bar-label"></div>
-    </div>
-    <div class="edge-bar edge-bar-s" id="edge-bar-s">
-      <div class="bar-fill"></div>
-      <div class="bar-label"></div>
+<div id="game-layout">
+  <div id="board-area">
+    <div class="board-wrapper">
+      <div class="edge-bar edge-bar-n" id="edge-bar-n">
+        <div class="bar-fill"></div>
+        <div class="bar-label"></div>
+      </div>
+      <div class="edge-bar edge-bar-w" id="edge-bar-w">
+        <div class="bar-fill"></div>
+        <div class="bar-label"></div>
+      </div>
+      <div id="grid"></div>
+      <div class="edge-bar edge-bar-e" id="edge-bar-e">
+        <div class="bar-fill"></div>
+        <div class="bar-label"></div>
+      </div>
+      <div class="edge-bar edge-bar-s" id="edge-bar-s">
+        <div class="bar-fill"></div>
+        <div class="bar-label"></div>
+      </div>
     </div>
   </div>
-  <div id="controls">
-    <button id="submit-btn" disabled>Pass Turn</button>
-    <button id="undo-btn" disabled>Undo</button>
-    <button onclick="window.location='/'">Lobby</button>
+  <div id="sidebar">
+    <h1>SQUAREITORY</h1>
+    <div id="player-indicator"></div>
+    <div id="spectator-badge" style="display:none">Spectating</div>
+    <div id="status">Connecting…</div>
+    <div id="waiting-info" style="display:none">
+      <span>Join code: <code id="waiting-join-code"></code></span>
+      <button id="copy-join-btn">Copy code</button>
+    </div>
+    <div id="controls">
+      <button id="submit-btn" disabled>Pass Turn</button>
+      <button id="undo-btn" disabled>Undo</button>
+      <button onclick="window.location='/'">Lobby</button>
+    </div>
+    <div id="log"></div>
   </div>
-  <div id="log"></div>
 </div>
 
 <button id="rules-btn">Rules</button>
