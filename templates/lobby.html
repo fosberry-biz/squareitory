@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cubism — Lobby</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<h1>CUBISM</h1>
+<div class="lobby-form">
+  <div id="create-section">
+    <div class="lobby-players">
+      <label><input type="radio" name="pc" value="4" checked> 4 players</label>
+      <label><input type="radio" name="pc" value="2"> 2 players</label>
+    </div>
+    <button id="new-btn">New Game</button>
+  </div>
+
+  <div id="created-panel" style="display:none">
+    <div class="lobby-created-msg">Game created</div>
+    <div class="lobby-game-id">
+      <code id="created-game-id"></code>
+      <button id="copy-link-btn">Copy join link</button>
+    </div>
+    <button id="go-btn">Go to game →</button>
+  </div>
+
+  <div class="lobby-sep">— or join existing —</div>
+  <input id="join-id" placeholder="Game ID" autocomplete="off" spellcheck="false" />
+  <button id="join-btn">Join Game</button>
+  <p id="msg"></p>
+</div>
+<script>
+let _goUrl = '';
+
+document.getElementById('new-btn').onclick = async () => {
+  const pc = parseInt(document.querySelector('input[name="pc"]:checked').value);
+  const r = await fetch('/game/new', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player_count: pc }),
+  });
+  const d = await r.json();
+  _goUrl = `/game/${d.game_id}?token=${d.token}`;
+  document.getElementById('created-game-id').textContent = d.game_id;
+  document.getElementById('create-section').style.display = 'none';
+  document.getElementById('created-panel').style.display = '';
+};
+
+document.getElementById('copy-link-btn').onclick = () => {
+  const id = document.getElementById('created-game-id').textContent;
+  navigator.clipboard.writeText(window.location.origin + `/?join=${id}`);
+  document.getElementById('copy-link-btn').textContent = 'Copied!';
+  setTimeout(() => { document.getElementById('copy-link-btn').textContent = 'Copy join link'; }, 2000);
+};
+
+document.getElementById('go-btn').onclick = () => { window.location = _goUrl; };
+
+document.getElementById('join-btn').onclick = async () => {
+  const id = document.getElementById('join-id').value.trim();
+  if (!id) return;
+  const r = await fetch(`/game/${id}/join`, { method: 'POST' });
+  const d = await r.json();
+  if (d.error) { document.getElementById('msg').textContent = d.error; return; }
+  window.location = `/game/${id}?token=${d.token}`;
+};
+
+// pre-fill join field from ?join= param
+const _joinParam = new URLSearchParams(window.location.search).get('join');
+if (_joinParam) document.getElementById('join-id').value = _joinParam;
+</script>
+</body>
+</html>

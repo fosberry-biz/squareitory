@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cubism</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div id="sidebar">
+  <h1>CUBISM</h1>
+  <div>
+    <div class="rules-title">How to Play</div>
+
+    <div class="rules-section">
+      <h3>Goal</h3>
+      <p>First player to reach <span class="rules-hl">10 game points</span> wins.</p>
+    </div>
+
+    <div class="rules-section">
+      <h3>Scoring Cells</h3>
+      <ul>
+        <li><span class="rules-hl">★★ Center</span> — 2 pts/turn</li>
+        <li><span class="rules-hl">★ Middle 4</span> — 1 pt/turn each</li>
+        <li><span class="rules-hl">◈ Corner zones</span> — +1 cube/turn</li>
+      </ul>
+    </div>
+
+    <div class="rules-section">
+      <h3>Turn (3 actions)</h3>
+      <ul>
+        <li>Place on your edge</li>
+        <li>Move stack to empty adjacent cell</li>
+        <li>Merge into a friendly stack</li>
+        <li>Battle: both sides lose equal cubes; ties destroy both</li>
+      </ul>
+    </div>
+
+    <div class="rules-section">
+      <h3>Players</h3>
+      <ul>
+        <li>N / E / S / W start on their edge</li>
+        <li>2-player: North vs South</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="player-indicator"></div>
+  <div id="spectator-badge" style="display:none">Spectating</div>
+  <div id="tracker"></div>
+  <div id="status">Connecting…</div>
+  <div id="waiting-info" style="display:none">
+    <span>Game ID: <code id="waiting-game-id"></code></span>
+    <button id="copy-join-btn">Copy join link</button>
+  </div>
+  <div id="grid"></div>
+  <div id="controls">
+    <button id="submit-btn" disabled>Pass Turn</button>
+    <button id="undo-btn" disabled>Undo</button>
+    <button onclick="window.location='/'">Lobby</button>
+  </div>
+  <div id="log"></div>
+</div>
+
+<script>
+  const GAME_ID      = {{ game_id | tojson }};
+  const TOKEN        = {{ token | tojson }};
+  const MY_INDEX     = {{ player_index }};
+  const PLAYER_COUNT = {{ player_count }};
+</script>
+<script src="/static/game.js"></script>
+</body>
+</html>

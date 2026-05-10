@@ -1,0 +1,6 @@
+.claude/
+PLAN.md
+UPDATES.md
+cubism.db
+__pycache__/
+*.pyc
