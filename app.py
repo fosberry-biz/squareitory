@@ -55,6 +55,8 @@ def _public(game):
         'player_count': game['player_count'],
         'players_joined': db.count_players(game['id']),
         'join_code': game.get('join_code'),
+        'turn_seconds': game.get('turn_seconds'),
+        'turn_started_at': game.get('turn_started_at'),
     }
 
 
@@ -149,12 +151,17 @@ def new_game():
     body = request.get_json(silent=True) or {}
     player_count = body.get('player_count', 4)
     is_public = 1 if body.get('is_public', True) else 0
+    turn_seconds = body.get('turn_seconds')
     if player_count not in (2, 4):
         return jsonify({'error': 'player_count must be 2 or 4'}), 400
+    if turn_seconds is not None:
+        turn_seconds = int(turn_seconds)
+        if not (3 <= turn_seconds <= 60):
+            return jsonify({'error': 'turn_seconds must be 3–60'}), 400
     account = _current_account()
     board = game_logic.make_board()
     center_turns = [0, 0, 0, 0]
-    game_id, join_code = db.create_game(board, center_turns, player_count, is_public)
+    game_id, join_code = db.create_game(board, center_turns, player_count, is_public, turn_seconds)
     token = db.add_player(game_id, 0, account['id'] if account else None)
     return jsonify({'game_id': game_id, 'token': token, 'player_index': 0, 'join_code': join_code})
 
@@ -175,7 +182,8 @@ def join_game(game_id):
     player_index = active[n]
     token = db.add_player(game_id, player_index, account['id'] if account else None)
     if n + 1 == player_count:
-        db.update_game(game_id, game['board'], active[0], game['center_turns'], 0, 'active', None)
+        db.update_game(game_id, game['board'], active[0], game['center_turns'], 0, 'active', None,
+                       turn_started_at=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
     game = db.get_game(game_id)
     _broadcast(game_id, _public(game))
     return jsonify({'game_id': game_id, 'token': token, 'player_index': player_index})
@@ -202,7 +210,8 @@ def join_by_code():
     player_index = active[n]
     token = db.add_player(game_id, player_index, account['id'] if account else None)
     if n + 1 == player_count:
-        db.update_game(game_id, game['board'], active[0], game['center_turns'], 0, 'active', None)
+        db.update_game(game_id, game['board'], active[0], game['center_turns'], 0, 'active', None,
+                       turn_started_at=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
     game = db.get_game(game_id)
     _broadcast(game_id, _public(game))
     return jsonify({'game_id': game_id, 'token': token, 'player_index': player_index})
@@ -239,6 +248,7 @@ def submit_move(game_id):
     body = request.get_json(silent=True) or {}
     token = body.get('token', '')
     actions = body.get('actions', [])
+    elapsed_ms = body.get('elapsed_ms')
 
     player = db.get_player(token)
     if not player or player['game_id'] != game_id:
@@ -252,17 +262,62 @@ def submit_move(game_id):
     if err:
         return jsonify({'error': err}), 400
 
-    db.record_turn(game_id, game['cur_player'], game['turn_number'], actions)
+    db.record_turn(game_id, game['cur_player'], game['turn_number'], actions, elapsed_ms)
     status = 'done' if winner is not None else 'active'
-    db.update_game(game_id, board, next_player, center_turns, game['turn_number'] + 1, status, winner)
-
-    if status == 'done':
-        db.recycle_join_code(game_id)
+    next_turn_started = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()) if status == 'active' else None
+    db.update_game(game_id, board, next_player, center_turns, game['turn_number'] + 1, status, winner,
+                   turn_started_at=next_turn_started)
 
     game = db.get_game(game_id)
     state = _public(game)
     _broadcast(game_id, state)
     return jsonify(state)
+
+
+@app.post('/game/<game_id>/rematch')
+def rematch(game_id):
+    game = db.get_game(game_id)
+    if not game:
+        return jsonify({'error': 'not found'}), 404
+    if game['status'] != 'done':
+        return jsonify({'error': 'game not done'}), 400
+    body = request.get_json(silent=True) or {}
+    token = body.get('token', '')
+    player = db.get_player(token) if token else None
+    if not player or player['game_id'] != game_id:
+        return jsonify({'error': 'invalid token'}), 403
+    board = game_logic.make_board()
+    center_turns = [0, 0, 0, 0]
+    n = db.count_players(game_id)
+    player_count = game['player_count']
+    active = game_logic.get_active_players(player_count)
+    if n >= player_count:
+        new_status = 'active'
+        turn_started_at = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    else:
+        new_status = 'waiting'
+        turn_started_at = None
+    db.reset_game(game_id, board, center_turns, active[0], new_status, None, turn_started_at)
+    game = db.get_game(game_id)
+    state = _public(game)
+    _broadcast(game_id, state)
+    return jsonify(state)
+
+
+@app.post('/game/<game_id>/leave')
+def leave_game(game_id):
+    body = request.get_json(silent=True) or {}
+    token = body.get('token', '')
+    player = db.get_player(token) if token else None
+    if not player or player['game_id'] != game_id:
+        return jsonify({'error': 'invalid token'}), 403
+    game = db.get_game(game_id)
+    if not game or game['status'] != 'done':
+        return jsonify({'error': 'can only leave after game ends'}), 400
+    db.remove_player(token)
+    game = db.get_game(game_id)
+    _broadcast(game_id, _public(game))
+    return jsonify({'ok': True})
 
 
 @app.get('/game/<game_id>/stream')

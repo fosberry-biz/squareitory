@@ -76,6 +76,19 @@
             <button class="toggle-btn" data-val="private" onclick="setToggle('visibility-toggle', this)">Private</button>
           </div>
         </div>
+        <div class="toggle-row">
+          <label>Timer</label>
+          <div class="toggle-group" id="timer-toggle">
+            <button class="toggle-btn active" data-val="off" onclick="setToggle('timer-toggle', this); updateTimerSlider()">Off</button>
+            <button class="toggle-btn" data-val="on" onclick="setToggle('timer-toggle', this); updateTimerSlider()">On</button>
+          </div>
+        </div>
+        <div class="toggle-row" id="timer-slider-row" style="display:none">
+          <label>Seconds <span id="timer-seconds-label">15</span>s</label>
+          <input type="range" id="timer-seconds" min="3" max="60" value="15" step="1"
+                 oninput="document.getElementById('timer-seconds-label').textContent = this.value"
+                 class="timer-slider">
+        </div>
         <button class="btn-primary" onclick="createGame()">Create game</button>
         <div id="new-game-result" class="new-game-result" style="display:none">
           <div class="join-code-display">Code: <strong id="display-code"></strong></div>
@@ -125,15 +138,22 @@
       return document.querySelector('#' + groupId + ' .toggle-btn.active').dataset.val;
     }
 
+    function updateTimerSlider() {
+      const on = getToggleVal('timer-toggle') === 'on';
+      document.getElementById('timer-slider-row').style.display = on ? '' : 'none';
+    }
+
     async function createGame() {
       document.getElementById('new-game-result').style.display = 'none';
       document.getElementById('new-game-error').textContent = '';
       const player_count = parseInt(getToggleVal('player-count-toggle'));
       const is_public = getToggleVal('visibility-toggle') === 'public';
+      const timerOn = getToggleVal('timer-toggle') === 'on';
+      const turn_seconds = timerOn ? parseInt(document.getElementById('timer-seconds').value) : null;
       const res = await fetch('/game/new', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({player_count, is_public}),
+        body: JSON.stringify({player_count, is_public, turn_seconds}),
       });
       const data = await res.json();
       if (!res.ok) {

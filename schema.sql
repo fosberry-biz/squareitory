@@ -15,17 +15,19 @@ CREATE TABLE IF NOT EXISTS friendships (
 );
 
 CREATE TABLE IF NOT EXISTS games (
-    id           TEXT PRIMARY KEY,
-    board        TEXT NOT NULL,
-    cur_player   INTEGER NOT NULL DEFAULT 0,
-    center_turns TEXT NOT NULL DEFAULT '[0,0,0,0]',
-    turn_number  INTEGER NOT NULL DEFAULT 0,
-    status       TEXT NOT NULL DEFAULT 'waiting',
-    winner       INTEGER,
-    player_count INTEGER NOT NULL DEFAULT 4,
-    join_code    TEXT UNIQUE,
-    is_public    INTEGER NOT NULL DEFAULT 1,
-    created_at   TEXT NOT NULL
+    id              TEXT PRIMARY KEY,
+    board           TEXT NOT NULL,
+    cur_player      INTEGER NOT NULL DEFAULT 0,
+    center_turns    TEXT NOT NULL DEFAULT '[0,0,0,0]',
+    turn_number     INTEGER NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'waiting',
+    winner          INTEGER,
+    player_count    INTEGER NOT NULL DEFAULT 4,
+    join_code       TEXT UNIQUE,
+    is_public       INTEGER NOT NULL DEFAULT 1,
+    turn_seconds    INTEGER,
+    turn_started_at TEXT,
+    created_at      TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS players (
@@ -42,5 +44,6 @@ CREATE TABLE IF NOT EXISTS turns (
     player_index INTEGER NOT NULL,
     turn_number  INTEGER NOT NULL,
     actions      TEXT NOT NULL,
+    elapsed_ms   INTEGER,
     submitted_at TEXT NOT NULL
 );

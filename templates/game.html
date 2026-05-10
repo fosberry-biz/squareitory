@@ -30,25 +30,53 @@
       </div>
     </div>
   </div>
+
+  <div id="sidebar-compact">
+    <div id="compact-turn"></div>
+    <div id="compact-gp"></div>
+    <div id="compact-timer-wrap"><div id="compact-timer-fill"></div></div>
+    <button id="compact-expand-btn">&#9650;</button>
+  </div>
+
   <div id="sidebar">
-    <h1>SQUAREITORY</h1>
-    <div id="player-indicator"></div>
-    <div id="spectator-badge" style="display:none">Spectating</div>
-    <div id="status">Connecting…</div>
-    <div id="waiting-info" style="display:none">
-      <span>Join code: <code id="waiting-join-code"></code></span>
-      <button id="copy-join-btn">Copy code</button>
+    <button id="dashboard-close-btn">&#x2715;</button>
+    <div class="dash-title">SQUAREITORY</div>
+
+    <div class="dash-section">
+      <div id="player-indicator"></div>
     </div>
-    <div id="controls">
+
+    <div class="dash-section">
+      <div id="status">Connecting…</div>
+      <div id="timer-bar" style="display:none">
+        <div id="timer-fill"></div>
+      </div>
+    </div>
+
+    <div class="dash-section dash-info">
+      <div class="dash-row">
+        <span class="dash-label">CODE</span>
+        <code id="join-code-val">—</code>
+      </div>
+      <div class="dash-row">
+        <span class="dash-label">SHARE</span>
+        <button id="copy-spectate-btn">Copy spectate link</button>
+      </div>
+    </div>
+
+    <div class="dash-section" id="controls">
       <button id="submit-btn" disabled>Pass Turn</button>
       <button id="undo-btn" disabled>Undo</button>
+      <button id="rules-btn">Rules</button>
       <button onclick="window.location='/'">Lobby</button>
     </div>
-    <div id="log"></div>
+
+    <div class="dash-section" id="rematch-section" style="display:none">
+      <button id="rematch-btn" class="btn-wide">Play Again</button>
+      <button id="leave-btn" class="btn-muted">I'm Out</button>
+    </div>
   </div>
 </div>
-
-<button id="rules-btn">Rules</button>
 
 <div id="rules-panel">
   <button id="rules-close">✕</button>

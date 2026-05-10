@@ -18,7 +18,14 @@ let serverState  = null;
 let previewBoard = null;
 let pending      = [];   // actions queued this turn
 let selected     = null; // {r, c} of selected cell
-let logs         = [];
+
+// timer
+let _timerInterval = null;
+let _turnDeadline  = null; // absolute ms when current turn expires
+
+const _isSpectator = MY_INDEX === -1;
+
+// --- initial UI setup ---
 
 // rules panel toggle
 document.getElementById('rules-btn').onclick = () => {
@@ -28,29 +35,59 @@ document.getElementById('rules-close').onclick = () => {
   document.getElementById('rules-panel').style.display = 'none';
 };
 
-// spectator setup (MY_INDEX === -1 means no token)
-if (MY_INDEX === -1) {
-  document.getElementById('spectator-badge').style.display = '';
+// hide player controls for spectators
+if (_isSpectator) {
   document.getElementById('submit-btn').style.display = 'none';
+  document.getElementById('undo-btn').style.display = 'none';
 }
 
-// player indicator
+// player indicator (set once at load)
 {
   const pi = document.getElementById('player-indicator');
-  if (MY_INDEX === -1) {
-    pi.textContent = 'Spectating';
+  if (_isSpectator) {
+    pi.textContent = 'SPECTATING';
   } else {
-    pi.textContent = `You are: ${PLAYERS[MY_INDEX].name}`;
+    pi.textContent = `YOU · ${PLAYERS[MY_INDEX].name.toUpperCase()}`;
     pi.classList.add('player-indicator-colored', PLAYERS[MY_INDEX].cls);
   }
 }
 
-document.getElementById('copy-join-btn').onclick = () => {
-  const code = document.getElementById('waiting-join-code').textContent;
-  if (code) navigator.clipboard.writeText(code);
-  const btn = document.getElementById('copy-join-btn');
+// copy spectate link
+document.getElementById('copy-spectate-btn').onclick = () => {
+  const url = window.location.origin + '/game/' + GAME_ID;
+  navigator.clipboard.writeText(url);
+  const btn = document.getElementById('copy-spectate-btn');
   btn.textContent = 'Copied!';
-  setTimeout(() => { btn.textContent = 'Copy code'; }, 2000);
+  setTimeout(() => { btn.textContent = 'Copy spectate link'; }, 2000);
+};
+
+// rematch
+document.getElementById('rematch-btn').onclick = async () => {
+  const btn = document.getElementById('rematch-btn');
+  btn.disabled = true;
+  try {
+    await fetch(`/game/${GAME_ID}/rematch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: TOKEN }),
+    });
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+// leave (opt out of next game)
+document.getElementById('leave-btn').onclick = async () => {
+  if (!confirm("Leave this game? You'll become a spectator and can rejoin via the game code.")) return;
+  const res = await fetch(`/game/${GAME_ID}/leave`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: TOKEN }),
+  });
+  const d = await res.json();
+  if (d.ok) {
+    window.location = '/game/' + GAME_ID;
+  }
 };
 
 // --- helpers ---
@@ -144,20 +181,61 @@ function showTurnFlash(p, isDone = false, winner = null) {
   });
 }
 
-// --- log ---
+// --- timer ---
 
-function logMsg(msg) {
-  logs.push(msg);
-  if (logs.length > 30) logs.shift();
-  document.getElementById('log').innerHTML =
-    logs.slice().reverse().map(l => `<div>${l}</div>`).join('');
+function _setCompactTimer(fraction) {
+  const fill = document.getElementById('compact-timer-fill');
+  const wrap = document.getElementById('compact-timer-wrap');
+  if (fraction === null) { wrap.style.visibility = 'hidden'; return; }
+  wrap.style.visibility = '';
+  const pct = Math.max(0, Math.min(100, fraction * 100));
+  fill.style.width = pct + '%';
+  fill.style.background = fraction < 0.10 ? '#e74c3c'
+                        : fraction < 0.50 ? '#f1c40f'
+                        : '#2ecc71';
+}
+
+function startTimer(turnStartedAt, turnSeconds) {
+  clearInterval(_timerInterval);
+  _timerInterval = null;
+  _turnDeadline = null;
+  if (!turnSeconds || !turnStartedAt) { _setTimerBar(null); return; }
+
+  const startMs = new Date(turnStartedAt).getTime();
+  _turnDeadline = startMs + turnSeconds * 1000;
+
+  _timerInterval = setInterval(() => {
+    const remaining = _turnDeadline - Date.now();
+    if (remaining <= 0) {
+      clearInterval(_timerInterval);
+      _timerInterval = null;
+      _setTimerBar(0);
+      if (isMyTurn()) submitTurn();
+    } else {
+      _setTimerBar(remaining / (turnSeconds * 1000));
+    }
+  }, 100);
+  _setTimerBar((_turnDeadline - Date.now()) / (turnSeconds * 1000));
+}
+
+function _setTimerBar(fraction) {
+  const bar  = document.getElementById('timer-bar');
+  const fill = document.getElementById('timer-fill');
+  if (fraction === null) { bar.style.display = 'none'; _setCompactTimer(null); return; }
+  bar.style.display = '';
+  const pct = Math.max(0, Math.min(100, fraction * 100));
+  fill.style.width = pct + '%';
+  fill.style.background = fraction < 0.10 ? '#e74c3c'
+                        : fraction < 0.50 ? '#f1c40f'
+                        : '#2ecc71';
+  _setCompactTimer(fraction);
 }
 
 // --- click handler ---
 
 function click(r, c) {
   if (!isMyTurn()) return;
-  if (actionsLeft() <= 0) { logMsg('No actions remaining'); return; }
+  if (actionsLeft() <= 0) return;
   const board  = previewBoard;
   const player = MY_INDEX;
   const cell   = board[r][c];
@@ -172,8 +250,7 @@ function click(r, c) {
       if (PLAYERS[player].startFn(r, c) && cell.owner === player && cell.n > 0) {
         const action = { type: 'place', r, c };
         const res = applyAction(board, action, player);
-        if (res.error) { logMsg(`Error: ${res.error}`); selected = null; render(); return; }
-        logMsg(`${PLAYERS[player].name} reinforces (${r},${c}) — stack ${res.board[r][c].n}`);
+        if (res.error) { selected = null; render(); return; }
         pending.push(action);
         previewBoard = res.board;
         selected = null;
@@ -185,26 +262,9 @@ function click(r, c) {
     }
 
     if (adj(sr, sc, r, c)) {
-      const src = board[sr][sc];
-      const dst = board[r][c];
       const action = { type: 'move', from_r: sr, from_c: sc, to_r: r, to_c: c };
       const res = applyAction(board, action, player);
-      if (res.error) { logMsg(`Error: ${res.error}`); selected = null; render(); return; }
-
-      if (dst.owner === null && dst.n === 0)
-        logMsg(`${PLAYERS[player].name} moves (${sr},${sc}) → (${r},${c})`);
-      else if (dst.owner === player)
-        logMsg(`${PLAYERS[player].name} merges → (${r},${c}) now ${res.board[r][c].n}`);
-      else {
-        const before = dst.n, atk = src.n;
-        const after  = res.board[r][c];
-        if (after.n === 0)
-          logMsg(`${PLAYERS[player].name} ties at (${r},${c}) — both destroyed`);
-        else if (after.owner === player)
-          logMsg(`${PLAYERS[player].name} captures (${r},${c})! ${atk} vs ${before} → ${after.n}`);
-        else
-          logMsg(`${PLAYERS[player].name} attacks (${r},${c}) — fails, defender: ${after.n}`);
-      }
+      if (res.error) { selected = null; render(); return; }
 
       pending.push(action);
       previewBoard = res.board;
@@ -228,8 +288,7 @@ function click(r, c) {
   if (PLAYERS[player].startFn(r, c) && cell.owner === null && cell.n === 0) {
     const action = { type: 'place', r, c };
     const res = applyAction(board, action, player);
-    if (res.error) { logMsg(`Error: ${res.error}`); return; }
-    logMsg(`${PLAYERS[player].name} places at (${r},${c}) — stack ${res.board[r][c].n}`);
+    if (res.error) return;
     pending.push(action);
     previewBoard = res.board;
     selected = null;
@@ -258,15 +317,18 @@ async function submitTurn() {
   const btn = document.getElementById('submit-btn');
   btn.disabled = true;
 
+  const elapsed_ms = _turnDeadline
+    ? Math.max(0, (serverState.turn_seconds * 1000) - (_turnDeadline - Date.now()))
+    : null;
+
   let res;
   try {
     res = await fetch(`/game/${GAME_ID}/move`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: TOKEN, actions: pending }),
+      body: JSON.stringify({ token: TOKEN, actions: pending, elapsed_ms }),
     });
   } catch {
-    logMsg('Network error — try again');
     btn.disabled = false;
     render();
     return;
@@ -274,7 +336,6 @@ async function submitTurn() {
 
   const d = await res.json();
   if (d.error) {
-    logMsg(`Server: ${d.error}`);
     // roll back preview to last known-good server state
     pending = [];
     previewBoard = copyBoard(serverState.board);
@@ -283,7 +344,6 @@ async function submitTurn() {
     return;
   }
 
-  logMsg(`Turn submitted (${pending.length} action${pending.length !== 1 ? 's' : ''})`);
   pending = [];
   // SSE will push the new authoritative state
 }
@@ -381,13 +441,13 @@ function render() {
     }
   }
 
-  // waiting-info panel
-  const waitingInfo = document.getElementById('waiting-info');
-  if (state.status === 'waiting') {
-    waitingInfo.style.display = '';
-    document.getElementById('waiting-join-code').textContent = state.join_code || GAME_ID;
-  } else {
-    waitingInfo.style.display = 'none';
+  // join code — always show
+  document.getElementById('join-code-val').textContent = state.join_code || '—';
+
+  // rematch section — players only, when game is done
+  if (!_isSpectator) {
+    document.getElementById('rematch-section').style.display =
+      state.status === 'done' ? '' : 'none';
   }
 
   // status bar
@@ -429,23 +489,19 @@ es.onmessage = e => {
   previewBoard = copyBoard(serverState.board);
   selected     = null;
   render();
+  syncCompactStrip(serverState);
+  updateDashboardMode();
 
   const { status, cur_player, winner } = serverState;
 
-  if (status === 'active' && cur_player !== prevCurPlayer) {
+  if (status === 'active' && (cur_player !== prevCurPlayer || prevStatus !== 'active')) {
     showTurnFlash(cur_player);
+    startTimer(serverState.turn_started_at, serverState.turn_seconds);
   } else if (status === 'done' && prevStatus !== 'done') {
     showTurnFlash(null, true, winner);
-  }
-
-  if (status === 'waiting') {
-    logMsg('Waiting for more players to join…');
-  } else if (status === 'done') {
-    logMsg(`*** ${PLAYERS[winner].name} WINS! ***`);
-  } else if (cur_player === MY_INDEX) {
-    logMsg('--- Your turn ---');
-  } else {
-    logMsg(`--- ${PLAYERS[cur_player].name}'s turn ---`);
+    startTimer(null, null);
+  } else if (status === 'waiting') {
+    startTimer(null, null);
   }
 };
 
@@ -455,3 +511,51 @@ es.onerror = () => {
 
 document.getElementById('submit-btn').onclick = submitTurn;
 document.getElementById('undo-btn').onclick = undoAction;
+
+// --- compact dashboard ---
+
+function updateDashboardMode() {
+  const layout = document.getElementById('game-layout');
+  const isLandscape = window.innerWidth > window.innerHeight;
+  if (isLandscape) {
+    layout.classList.remove('compact-dash');
+    return;
+  }
+  const boardH = document.getElementById('board-area').offsetHeight;
+  const available = window.innerHeight - 16 - 8 - boardH; // body padding + gap
+  if (available < 240) {
+    layout.classList.add('compact-dash');
+  } else {
+    layout.classList.remove('compact-dash');
+  }
+}
+
+function syncCompactStrip(state) {
+  const cur = state.cur_player;
+  const turnEl = document.getElementById('compact-turn');
+  if (state.status === 'done') {
+    turnEl.textContent = state.winner !== null ? `${PLAYERS[state.winner].name.toUpperCase()} WINS` : 'GAME OVER';
+    turnEl.className = '';
+  } else if (state.status === 'waiting') {
+    turnEl.textContent = 'WAITING';
+    turnEl.className = '';
+  } else {
+    const isMe = cur === MY_INDEX;
+    turnEl.textContent = isMe ? 'YOUR TURN' : `${PLAYERS[cur].name.toUpperCase()}`;
+    turnEl.className = `player-indicator-colored ${PLAYERS[cur].cls}`;
+  }
+
+  const gp = state.center_turns || [];
+  const gpParts = activePlayers.map(p => `${PLAYERS[p].name[0]}:${gp[p] ?? 0}`);
+  document.getElementById('compact-gp').textContent = gpParts.join('  ');
+}
+
+document.getElementById('compact-expand-btn').onclick = () => {
+  document.getElementById('sidebar').classList.add('open');
+};
+document.getElementById('dashboard-close-btn').onclick = () => {
+  document.getElementById('sidebar').classList.remove('open');
+};
+
+window.addEventListener('resize', updateDashboardMode);
+updateDashboardMode();

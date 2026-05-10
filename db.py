@@ -33,6 +33,13 @@ def init_db():
         conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_games_join_code ON games(join_code)')
     if 'is_public' not in cols:
         conn.execute('ALTER TABLE games ADD COLUMN is_public INTEGER NOT NULL DEFAULT 1')
+    if 'turn_seconds' not in cols:
+        conn.execute('ALTER TABLE games ADD COLUMN turn_seconds INTEGER')
+    if 'turn_started_at' not in cols:
+        conn.execute('ALTER TABLE games ADD COLUMN turn_started_at TEXT')
+    tcols = [row[1] for row in conn.execute('PRAGMA table_info(turns)').fetchall()]
+    if 'elapsed_ms' not in tcols:
+        conn.execute('ALTER TABLE turns ADD COLUMN elapsed_ms INTEGER')
     pcols = [row[1] for row in conn.execute('PRAGMA table_info(players)').fetchall()]
     if 'account_id' not in pcols:
         conn.execute('ALTER TABLE players ADD COLUMN account_id TEXT REFERENCES accounts(id)')
@@ -148,7 +155,7 @@ def _random_join_code():
     return str(random.randint(1000, 9999))
 
 
-def create_game(board, center_turns, player_count=4, is_public=1):
+def create_game(board, center_turns, player_count=4, is_public=1, turn_seconds=None):
     game_id = str(uuid.uuid4())
     conn = get_db()
     # Find unused 4-digit code
@@ -163,8 +170,9 @@ def create_game(board, center_turns, player_count=4, is_public=1):
         code = None  # fallback: no code if all exhausted (extremely unlikely)
     conn.execute(
         'INSERT INTO games (id, board, cur_player, center_turns, turn_number, status, winner, '
-        'player_count, join_code, is_public, created_at) VALUES (?, ?, 0, ?, 0, "waiting", NULL, ?, ?, ?, ?)',
-        (game_id, json.dumps(board), json.dumps(center_turns), player_count, code, is_public, _now()),
+        'player_count, join_code, is_public, turn_seconds, created_at) '
+        'VALUES (?, ?, 0, ?, 0, "waiting", NULL, ?, ?, ?, ?, ?)',
+        (game_id, json.dumps(board), json.dumps(center_turns), player_count, code, is_public, turn_seconds, _now()),
     )
     conn.commit()
     conn.close()
@@ -197,12 +205,12 @@ def get_game_by_join_code(code):
     return g
 
 
-def update_game(game_id, board, cur_player, center_turns, turn_number, status, winner):
+def update_game(game_id, board, cur_player, center_turns, turn_number, status, winner, turn_started_at=None):
     conn = get_db()
     conn.execute(
-        'UPDATE games SET board=?, cur_player=?, center_turns=?, turn_number=?, status=?, winner=? '
+        'UPDATE games SET board=?, cur_player=?, center_turns=?, turn_number=?, status=?, winner=?, turn_started_at=? '
         'WHERE id=?',
-        (json.dumps(board), cur_player, json.dumps(center_turns), turn_number, status, winner, game_id),
+        (json.dumps(board), cur_player, json.dumps(center_turns), turn_number, status, winner, turn_started_at, game_id),
     )
     conn.commit()
     conn.close()
@@ -245,12 +253,31 @@ def count_players(game_id):
 
 # --- Turns ---
 
-def record_turn(game_id, player_index, turn_number, actions):
+def record_turn(game_id, player_index, turn_number, actions, elapsed_ms=None):
     conn = get_db()
     conn.execute(
-        'INSERT INTO turns (game_id, player_index, turn_number, actions, submitted_at) '
-        'VALUES (?, ?, ?, ?, ?)',
-        (game_id, player_index, turn_number, json.dumps(actions), _now()),
+        'INSERT INTO turns (game_id, player_index, turn_number, actions, elapsed_ms, submitted_at) '
+        'VALUES (?, ?, ?, ?, ?, ?)',
+        (game_id, player_index, turn_number, json.dumps(actions), elapsed_ms, _now()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def remove_player(token):
+    conn = get_db()
+    conn.execute('DELETE FROM players WHERE token = ?', (token,))
+    conn.commit()
+    conn.close()
+
+
+def reset_game(game_id, board, center_turns, cur_player, status, winner, turn_started_at):
+    conn = get_db()
+    conn.execute(
+        'UPDATE games SET board=?, center_turns=?, cur_player=?, turn_number=0, '
+        'status=?, winner=?, turn_started_at=? WHERE id=?',
+        (json.dumps(board), json.dumps(center_turns), cur_player,
+         status, winner, turn_started_at, game_id),
     )
     conn.commit()
     conn.close()
