@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Games — Squareitory</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { overflow: auto; }
+    .page-wrap { max-width: 700px; margin: 0 auto; padding: 20px 16px; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .page-header h1 { font-size: 1.1rem; letter-spacing: 4px; }
+    .nav-links { display: flex; gap: 16px; font-size: 0.75rem; }
+    .nav-links a { color: #aaa; text-decoration: none; }
+    .nav-links a:hover { color: #ddd; }
+    .section-label { font-size: 0.6rem; letter-spacing: 3px; color: #555; text-transform: uppercase; margin-bottom: 12px; }
+    .card { background: #161616; border: 1px solid #252525; border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 0.6rem; letter-spacing: 2px; color: #555; text-transform: uppercase; text-align: left; padding: 10px 14px 8px; border-bottom: 1px solid #222; }
+    td { padding: 10px 14px; border-bottom: 1px solid #1a1a1a; font-size: 0.82rem; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    .turn-num { color: #888; }
+    .players-cell { color: #aaa; font-size: 0.75rem; }
+    .player-tag { display: inline-block; padding: 1px 5px; border-radius: 3px; margin-right: 3px; font-size: 0.65rem; }
+    .player-tag.p0 { background: #a93226; color: #fff; }
+    .player-tag.p1 { background: #1f618d; color: #fff; }
+    .player-tag.p2 { background: #1e8449; color: #fff; }
+    .player-tag.p3 { background: #b7950b; color: #111; }
+    .action-links { display: flex; gap: 8px; }
+    .action-links a { color: #aaa; text-decoration: none; font-size: 0.75rem; border: 1px solid #333; padding: 3px 8px; border-radius: 3px; }
+    .action-links a:hover { border-color: #555; color: #ddd; }
+    .empty-state { padding: 32px; text-align: center; color: #555; font-size: 0.85rem; }
+    .age-cell { color: #666; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <header class="page-header">
+      <h1 class="logo">Squareitory</h1>
+      <nav class="nav-links">
+        <a href="/">Home</a>
+        <a href="/stats">Stats</a>
+        <a href="/players">Players</a>
+      </nav>
+    </header>
+
+    <div class="section-label">10 longest-running active games</div>
+
+    <div class="card">
+      {% if games %}
+      <table>
+        <thead>
+          <tr>
+            <th>Game</th>
+            <th>Turn</th>
+            <th>Players</th>
+            <th>Started</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for g in games %}
+          {% set player_names = ['North','East','South','West'] %}
+          <tr>
+            <td style="font-size:0.7rem; color:#555;">{{ g.id[:8] }}</td>
+            <td class="turn-num">{{ g.turn_number }}</td>
+            <td class="players-cell">
+              {% for p in g.players %}
+                <span class="player-tag p{{ p.player_index }}">
+                  {{ p.username if p.username else player_names[p.player_index] }}
+                </span>
+              {% endfor %}
+            </td>
+            <td class="age-cell">{{ g.created_at[:10] }}</td>
+            <td>
+              <div class="action-links">
+                <a href="/game/{{ g.id }}">Spectate</a>
+                <a href="/game/{{ g.id }}/detail">Detail</a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">No active games right now.</div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

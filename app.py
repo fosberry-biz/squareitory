@@ -135,6 +135,44 @@ def add_friend():
     return redirect(url_for('friends_page', msg=f"Added {friend['username']} as a friend"))
 
 
+# --- Stats / Games / Players ---
+
+@app.get('/stats')
+def stats_page():
+    active_count = db.get_active_game_count()
+    top_players = db.get_top_players_by_wins()
+    return render_template('stats.html', account=_current_account(),
+                           active_count=active_count, top_players=top_players)
+
+
+@app.get('/stats/data')
+def stats_data():
+    return jsonify(
+        active_count=db.get_active_game_count(),
+        top_players=db.get_top_players_by_wins(),
+    )
+
+
+@app.get('/games')
+def games_page():
+    games = db.get_longest_active_games()
+    return render_template('games.html', account=_current_account(), games=games)
+
+
+@app.get('/game/<game_id>/detail')
+def game_detail_page(game_id):
+    stats = db.get_game_stats(game_id)
+    if not stats:
+        abort(404)
+    return render_template('game_detail.html', account=_current_account(), **stats)
+
+
+@app.get('/players')
+def players_page():
+    players = db.get_all_players_with_stats()
+    return render_template('players.html', account=_current_account(), players=players)
+
+
 # --- Home / lobby ---
 
 @app.get('/')

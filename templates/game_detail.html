@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Detail — Squareitory</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { overflow: auto; }
+    .page-wrap { max-width: 700px; margin: 0 auto; padding: 20px 16px; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .page-header h1 { font-size: 1.1rem; letter-spacing: 4px; }
+    .nav-links { display: flex; gap: 16px; font-size: 0.75rem; }
+    .nav-links a { color: #aaa; text-decoration: none; }
+    .nav-links a:hover { color: #ddd; }
+    .card { background: #161616; border: 1px solid #252525; border-radius: 6px; padding: 18px 20px; margin-bottom: 14px; }
+    .card-label { font-size: 0.6rem; letter-spacing: 3px; color: #555; text-transform: uppercase; margin-bottom: 12px; }
+    .meta-row { display: flex; gap: 28px; flex-wrap: wrap; }
+    .meta-item { display: flex; flex-direction: column; gap: 3px; }
+    .meta-key { font-size: 0.6rem; color: #555; letter-spacing: 2px; text-transform: uppercase; }
+    .meta-val { font-size: 1.1rem; }
+    .status-done { color: #1e8449; }
+    .status-active { color: #b7950b; }
+    .status-waiting { color: #555; }
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 0.6rem; letter-spacing: 2px; color: #555; text-transform: uppercase; text-align: left; padding: 6px 0 5px; border-bottom: 1px solid #222; }
+    td { padding: 8px 0; border-bottom: 1px solid #1a1a1a; font-size: 0.82rem; }
+    tr:last-child td { border-bottom: none; }
+    .player-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    .p0 { background: #a93226; }
+    .p1 { background: #1f618d; }
+    .p2 { background: #1e8449; }
+    .p3 { background: #b7950b; }
+    .winner-badge { color: #b7950b; font-size: 0.7rem; margin-left: 6px; }
+    .gp-bar-wrap { display: flex; gap: 6px; align-items: center; }
+    .gp-bar { height: 6px; border-radius: 3px; min-width: 2px; }
+    .gp-val { font-size: 0.75rem; color: #888; }
+    .board-wrap { overflow: auto; }
+    canvas { display: block; }
+    .spectate-link { font-size: 0.75rem; color: #aaa; text-decoration: none; border: 1px solid #333; padding: 4px 10px; border-radius: 3px; }
+    .spectate-link:hover { border-color: #555; color: #ddd; }
+    .game-id { font-size: 0.65rem; color: #444; margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <header class="page-header">
+      <h1 class="logo">Squareitory</h1>
+      <nav class="nav-links">
+        <a href="/">Home</a>
+        <a href="/games">Games</a>
+        <a href="/stats">Stats</a>
+        <a href="/players">Players</a>
+      </nav>
+    </header>
+
+    <div class="card">
+      <div class="game-id">{{ game.id }}</div>
+      <div class="meta-row">
+        <div class="meta-item">
+          <span class="meta-key">Status</span>
+          <span class="meta-val status-{{ game.status }}">{{ game.status }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-key">Turn</span>
+          <span class="meta-val">{{ game.turn_number }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-key">Players</span>
+          <span class="meta-val">{{ game.player_count }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-key">Total moves</span>
+          <span class="meta-val">{{ total_moves }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-key">Farming cubes</span>
+          <span class="meta-val">{{ farming_cubes }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-key">Started</span>
+          <span class="meta-val" style="font-size:0.85rem;">{{ game.created_at[:10] }}</span>
+        </div>
+      </div>
+      <div style="margin-top:14px;">
+        <a class="spectate-link" href="/game/{{ game.id }}">Spectate →</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Score (game points toward 10)</div>
+      {% set pnames = ['North','East','South','West'] %}
+      {% set pclasses = ['p0','p1','p2','p3'] %}
+      {% set ct = game.center_turns %}
+      <table>
+        <thead>
+          <tr><th>Player</th><th>GP</th><th>Progress</th><th>Moves</th><th>Record</th></tr>
+        </thead>
+        <tbody>
+          {% for pr in player_records %}
+          <tr>
+            <td>
+              <span class="player-dot {{ pclasses[pr.player_index] }}"></span>
+              {{ pr.username if pr.username else pnames[pr.player_index] }}
+              {% if game.winner == pr.player_index %}
+                <span class="winner-badge">★ Winner</span>
+              {% endif %}
+            </td>
+            <td>{{ ct[pr.player_index] if pr.player_index < ct|length else 0 }} / 10</td>
+            <td>
+              <div class="gp-bar-wrap">
+                {% set gp = ct[pr.player_index] if pr.player_index < ct|length else 0 %}
+                <div class="gp-bar {{ pclasses[pr.player_index] }}" style="width:{{ [gp * 12, 2]|max }}px"></div>
+                <span class="gp-val">{{ gp }}</span>
+              </div>
+            </td>
+            <td>{{ pr.moves }}</td>
+            <td style="color:#888; font-size:0.75rem;">
+              {% if pr.username %}{{ pr.wins }}W / {{ pr.total_games - pr.wins }}L{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Final board position</div>
+      <div class="board-wrap">
+        <canvas id="board-canvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BOARD = {{ game.board | tojson }};
+    const WINNER = {{ game.winner if game.winner is not none else 'null' }};
+    const SIZE = 11;
+    const COLORS = ['#a93226', '#1f618d', '#1e8449', '#b7950b'];
+    const CELL = Math.min(Math.floor((window.innerWidth - 64) / SIZE), 48);
+
+    const canvas = document.getElementById('board-canvas');
+    canvas.width = SIZE * CELL;
+    canvas.height = SIZE * CELL;
+    const ctx = canvas.getContext('2d');
+
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const cell = BOARD[r][c];
+        const x = c * CELL, y = r * CELL;
+
+        if (cell.blocked) {
+          ctx.fillStyle = '#0a0a0a';
+        } else if (cell.owner !== null && cell.owner !== undefined) {
+          ctx.fillStyle = COLORS[cell.owner] + '99';
+        } else if (cell.farming) {
+          ctx.fillStyle = '#1e1e1e';
+        } else if (cell.gp > 0) {
+          ctx.fillStyle = '#1a1a24';
+        } else {
+          ctx.fillStyle = '#161616';
+        }
+        ctx.fillRect(x, y, CELL, CELL);
+
+        ctx.strokeStyle = '#0d0d0d';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x + 0.25, y + 0.25, CELL - 0.5, CELL - 0.5);
+
+        if (cell.gp > 0 && !cell.blocked) {
+          ctx.fillStyle = '#2a2a3a';
+          ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
+        }
+
+        if (cell.farming && !cell.blocked) {
+          ctx.strokeStyle = '#333';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 2, y + 2, CELL - 4, CELL - 4);
+        }
+
+        if (cell.n > 0 && !cell.blocked) {
+          const col = cell.owner !== null ? COLORS[cell.owner] : '#666';
+          ctx.fillStyle = col;
+          ctx.font = `bold ${Math.max(CELL * 0.45, 10)}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(cell.n, x + CELL / 2, y + CELL / 2);
+        }
+      }
+    }
+  </script>
+</body>
+</html>

@@ -281,3 +281,130 @@ def reset_game(game_id, board, center_turns, cur_player, status, winner, turn_st
     )
     conn.commit()
     conn.close()
+
+
+# --- Stats ---
+
+def get_active_game_count():
+    conn = get_db()
+    n = conn.execute("SELECT COUNT(*) FROM games WHERE status='active'").fetchone()[0]
+    conn.close()
+    return n
+
+
+def get_top_players_by_wins(limit=10):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT a.username, COUNT(*) as wins "
+        "FROM games g "
+        "JOIN players p ON p.game_id = g.id AND p.player_index = g.winner "
+        "JOIN accounts a ON a.id = p.account_id "
+        "WHERE g.status = 'done' AND g.winner IS NOT NULL "
+        "GROUP BY a.id ORDER BY wins DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_longest_active_games(limit=10):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT g.id, g.created_at, g.turn_number, g.player_count "
+        "FROM games g WHERE g.status = 'active' "
+        "ORDER BY g.created_at ASC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    games = []
+    for row in rows:
+        g = dict(row)
+        players = conn.execute(
+            "SELECT a.username, p.player_index FROM players p "
+            "LEFT JOIN accounts a ON a.id = p.account_id "
+            "WHERE p.game_id = ? ORDER BY p.player_index",
+            (g['id'],),
+        ).fetchall()
+        g['players'] = [dict(p) for p in players]
+        games.append(g)
+    conn.close()
+    return games
+
+
+def get_game_stats(game_id):
+    conn = get_db()
+    row = conn.execute('SELECT * FROM games WHERE id = ?', (game_id,)).fetchone()
+    if not row:
+        conn.close()
+        return None
+    game = dict(row)
+    game['board'] = json.loads(game['board'])
+    game['center_turns'] = json.loads(game['center_turns'])
+
+    turn_rows = conn.execute(
+        'SELECT player_index, actions FROM turns WHERE game_id = ?', (game_id,)
+    ).fetchall()
+    moves_by_player = {}
+    total_moves = 0
+    for tr in turn_rows:
+        pi = tr['player_index']
+        actions = json.loads(tr['actions'])
+        moves_by_player[pi] = moves_by_player.get(pi, 0) + len(actions)
+        total_moves += len(actions)
+
+    farming_cubes = sum(
+        cell['n']
+        for row in game['board']
+        for cell in row
+        if cell.get('farming') and cell.get('n', 0) > 0
+    )
+
+    player_rows = conn.execute(
+        "SELECT p.player_index, p.account_id, a.username "
+        "FROM players p LEFT JOIN accounts a ON a.id = p.account_id "
+        "WHERE p.game_id = ? ORDER BY p.player_index",
+        (game_id,),
+    ).fetchall()
+    player_records = []
+    for pr in player_rows:
+        pd = dict(pr)
+        if pd['account_id']:
+            pd['wins'] = conn.execute(
+                "SELECT COUNT(*) FROM games g "
+                "JOIN players pl ON pl.game_id = g.id AND pl.player_index = g.winner "
+                "WHERE pl.account_id = ? AND g.status = 'done'",
+                (pd['account_id'],),
+            ).fetchone()[0]
+            pd['total_games'] = conn.execute(
+                "SELECT COUNT(DISTINCT g.id) FROM games g "
+                "JOIN players pl ON pl.game_id = g.id "
+                "WHERE pl.account_id = ? AND g.status = 'done'",
+                (pd['account_id'],),
+            ).fetchone()[0]
+        else:
+            pd['wins'] = 0
+            pd['total_games'] = 0
+        pd['moves'] = moves_by_player.get(pd['player_index'], 0)
+        player_records.append(pd)
+
+    conn.close()
+    return {
+        'game': game,
+        'total_moves': total_moves,
+        'farming_cubes': farming_cubes,
+        'player_records': player_records,
+    }
+
+
+def get_all_players_with_stats():
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT a.id, a.username, a.created_at, "
+        "COUNT(DISTINCT p.game_id) as games_played, "
+        "SUM(CASE WHEN g.winner = p.player_index AND g.status = 'done' THEN 1 ELSE 0 END) as wins "
+        "FROM accounts a "
+        "LEFT JOIN players p ON p.account_id = a.id "
+        "LEFT JOIN games g ON g.id = p.game_id "
+        "GROUP BY a.id ORDER BY games_played DESC"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

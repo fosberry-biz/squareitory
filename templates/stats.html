@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stats — Squareitory</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { overflow: auto; }
+    .page-wrap { max-width: 600px; margin: 0 auto; padding: 20px 16px; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .page-header h1 { font-size: 1.1rem; letter-spacing: 4px; }
+    .nav-links { display: flex; gap: 16px; font-size: 0.75rem; }
+    .nav-links a { color: #aaa; text-decoration: none; }
+    .nav-links a:hover { color: #ddd; }
+    .stat-card { background: #161616; border: 1px solid #252525; border-radius: 6px; padding: 20px 24px; margin-bottom: 16px; }
+    .stat-label { font-size: 0.6rem; letter-spacing: 3px; color: #555; text-transform: uppercase; margin-bottom: 8px; }
+    .stat-number { font-size: 2.8rem; color: #ddd; }
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 0.6rem; letter-spacing: 2px; color: #555; text-transform: uppercase; text-align: left; padding: 8px 0 6px; border-bottom: 1px solid #222; }
+    td { padding: 9px 0; border-bottom: 1px solid #1a1a1a; font-size: 0.85rem; }
+    tr:last-child td { border-bottom: none; }
+    .rank { color: #555; width: 28px; }
+    .wins-badge { color: #1e8449; font-size: 0.75rem; }
+    .refresh-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+    .btn-ghost { background: none; border: 1px solid #333; color: #aaa; padding: 5px 12px; border-radius: 4px; font-family: monospace; font-size: 0.75rem; cursor: pointer; }
+    .btn-ghost:hover { border-color: #555; color: #ddd; }
+    .btn-ghost:disabled { opacity: 0.4; cursor: default; }
+    .refresh-hint { font-size: 0.65rem; color: #555; }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <header class="page-header">
+      <h1 class="logo">Squareitory</h1>
+      <nav class="nav-links">
+        <a href="/">Home</a>
+        <a href="/games">Games</a>
+        <a href="/players">Players</a>
+      </nav>
+    </header>
+
+    <div class="stat-card">
+      <div class="stat-label">Active games right now</div>
+      <div class="stat-number" id="active-count">{{ active_count }}</div>
+      <div class="refresh-row">
+        <button class="btn-ghost" id="refresh-btn" onclick="doRefresh()">Refresh</button>
+        <span class="refresh-hint" id="refresh-hint"></span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Top players by wins</div>
+      {% if top_players %}
+      <table>
+        <thead>
+          <tr>
+            <th class="rank">#</th>
+            <th>Player</th>
+            <th>Wins</th>
+          </tr>
+        </thead>
+        <tbody id="top-players-body">
+          {% for p in top_players %}
+          <tr>
+            <td class="rank">{{ loop.index }}</td>
+            <td>{{ p.username }}</td>
+            <td class="wins-badge">{{ p.wins }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="color:#555; font-size:0.8rem; padding-top:8px;">No completed games yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <script>
+    let _lastRefresh = 0;
+    const COOLDOWN = 60000;
+
+    async function doRefresh() {
+      const now = Date.now();
+      if (now - _lastRefresh < COOLDOWN) return;
+      _lastRefresh = now;
+      const btn = document.getElementById('refresh-btn');
+      btn.disabled = true;
+      startCooldown();
+      try {
+        const res = await fetch('/stats/data');
+        if (!res.ok) return;
+        const d = await res.json();
+        document.getElementById('active-count').textContent = d.active_count;
+        const tbody = document.getElementById('top-players-body');
+        if (tbody) {
+          tbody.innerHTML = d.top_players.map((p, i) =>
+            `<tr><td class="rank">${i+1}</td><td>${p.username}</td><td class="wins-badge">${p.wins}</td></tr>`
+          ).join('');
+        }
+      } catch(e) {}
+    }
+
+    function startCooldown() {
+      const btn = document.getElementById('refresh-btn');
+      const hint = document.getElementById('refresh-hint');
+      let remaining = 60;
+      hint.textContent = `Next refresh in ${remaining}s`;
+      const iv = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+          clearInterval(iv);
+          btn.disabled = false;
+          hint.textContent = '';
+        } else {
+          hint.textContent = `Next refresh in ${remaining}s`;
+        }
+      }, 1000);
+    }
+  </script>
+</body>
+</html>

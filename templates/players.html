@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Players — Squareitory</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { overflow: auto; }
+    .page-wrap { max-width: 600px; margin: 0 auto; padding: 20px 16px; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .page-header h1 { font-size: 1.1rem; letter-spacing: 4px; }
+    .nav-links { display: flex; gap: 16px; font-size: 0.75rem; }
+    .nav-links a { color: #aaa; text-decoration: none; }
+    .nav-links a:hover { color: #ddd; }
+    .card { background: #161616; border: 1px solid #252525; border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+    .card-header { padding: 10px 16px; border-bottom: 1px solid #222; font-size: 0.6rem; letter-spacing: 3px; color: #555; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+    .total-count { font-size: 0.9rem; color: #888; letter-spacing: 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 0.6rem; letter-spacing: 2px; color: #555; text-transform: uppercase; text-align: left; padding: 10px 16px 8px; border-bottom: 1px solid #222; }
+    td { padding: 10px 16px; border-bottom: 1px solid #1a1a1a; font-size: 0.82rem; }
+    tr:last-child td { border-bottom: none; }
+    .wins-val { color: #1e8449; }
+    .losses-val { color: #666; }
+    .empty-state { padding: 32px; text-align: center; color: #555; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <header class="page-header">
+      <h1 class="logo">Squareitory</h1>
+      <nav class="nav-links">
+        <a href="/">Home</a>
+        <a href="/stats">Stats</a>
+        <a href="/games">Games</a>
+      </nav>
+    </header>
+
+    <div class="card">
+      <div class="card-header">
+        <span>Registered players</span>
+        <span class="total-count">{{ players | length }}</span>
+      </div>
+      {% if players %}
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Username</th>
+            <th>Games played</th>
+            <th>Wins</th>
+            <th>Losses</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in players %}
+          <tr>
+            <td style="color:#555;">{{ loop.index }}</td>
+            <td>{{ p.username }}</td>
+            <td>{{ p.games_played or 0 }}</td>
+            <td class="wins-val">{{ p.wins or 0 }}</td>
+            <td class="losses-val">{{ (p.games_played or 0) - (p.wins or 0) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">No registered players yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>
