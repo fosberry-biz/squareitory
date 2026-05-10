@@ -507,22 +507,15 @@ button:disabled { opacity: 0.4; cursor: default; }
 #player-indicator.player-indicator-colored.p2 { background: #1e8449; }
 #player-indicator.player-indicator-colored.p3 { background: #b7950b; color: #111; }
 
-/* ---- Home / Friends pages ---- */
+/* ---- Global site header ---- */
 
-.home-wrap {
-  width: 100%;
-  max-width: 640px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.home-header {
+.site-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-bottom: 12px;
   border-bottom: 1px solid #2a2a2a;
+  margin-bottom: 24px;
 }
 
 .logo {
@@ -533,6 +526,37 @@ button:disabled { opacity: 0.4; cursor: default; }
   text-decoration: none;
 }
 a.logo { color: #ddd; }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.75rem;
+}
+.nav-links a { color: #aaa; text-decoration: none; }
+.nav-links a:hover { color: #ddd; }
+
+.btn-ghost-sm {
+  background: none;
+  border: 1px solid #333;
+  color: #666;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.btn-ghost-sm:hover { border-color: #555; color: #aaa; }
+
+/* ---- Home / Friends pages ---- */
+
+.home-wrap {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
 .home-account {
   display: flex;

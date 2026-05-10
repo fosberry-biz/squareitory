@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ player.username }} — Squareitory</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { overflow: auto; }
+    .page-wrap { max-width: 600px; margin: 0 auto; padding: 20px 16px; }
+
+    .card { background: #161616; border: 1px solid #252525; border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+    .card-header { padding: 10px 16px; border-bottom: 1px solid #222; font-size: 0.6rem; letter-spacing: 3px; color: #555; text-transform: uppercase; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .stat-cell { padding: 16px 20px; border-bottom: 1px solid #1a1a1a; }
+    .stat-cell:nth-child(odd) { border-right: 1px solid #1a1a1a; }
+    .stat-label { font-size: 0.6rem; letter-spacing: 2px; color: #555; text-transform: uppercase; margin-bottom: 6px; }
+    .stat-value { font-size: 1.4rem; color: #ddd; }
+    .stat-value.wins { color: #1e8449; }
+    .stat-value.losses { color: #666; }
+    .stat-value.rate { color: #888; }
+    .player-name { font-size: 1.4rem; letter-spacing: 2px; color: #ddd; padding: 18px 20px; }
+    .player-since { font-size: 0.72rem; color: #555; padding: 0 20px 16px; }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    {% include '_header.html' %}
+
+    <div class="card">
+      <div class="card-header">Player</div>
+      <div class="player-name">{{ player.username }}</div>
+      <div class="player-since">Member since {{ player.created_at[:10] }}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Stats</div>
+      <div class="stat-grid">
+        <div class="stat-cell">
+          <div class="stat-label">Games played</div>
+          <div class="stat-value">{{ player.games_played or 0 }}</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label">Win rate</div>
+          {% set gp = player.games_played or 0 %}
+          {% set w = player.wins or 0 %}
+          <div class="stat-value rate">{% if gp > 0 %}{{ ((w / gp) * 100) | round(0) | int }}%{% else %}—{% endif %}</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label">Wins</div>
+          <div class="stat-value wins">{{ player.wins or 0 }}</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label">Losses</div>
+          <div class="stat-value losses">{{ (player.games_played or 0) - (player.wins or 0) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

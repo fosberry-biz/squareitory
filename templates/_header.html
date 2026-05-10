@@ -1,0 +1,14 @@
+<header class="site-header">
+  <a href="/" class="logo">Squareitory</a>
+  <nav class="nav-links">
+    <a href="/players">Players</a>
+    <a href="/games">Games</a>
+    {% if account %}
+    <a href="/friends">Friends</a>
+    <a href="/players/{{ account.username }}">My Stats</a>
+    <form method="post" action="/auth/signout" style="display:inline">
+      <button class="btn-ghost btn-ghost-sm">Sign out</button>
+    </form>
+    {% endif %}
+  </nav>
+</header>

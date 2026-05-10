@@ -5,21 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Squareitory</title>
   <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { overflow: auto; display: flex; justify-content: center; padding: 20px 16px; }
+    .home-wrap { width: 100%; }
+  </style>
 </head>
 <body>
   <div class="home-wrap">
-    <header class="home-header">
-      <h1 class="logo">Squareitory</h1>
-      {% if account %}
-        <div class="home-account">
-          <span class="acct-name">{{ account.username }}</span>
-          <a href="/friends" class="btn-link">Friends</a>
-          <form method="post" action="/auth/signout" style="display:inline">
-            <button class="btn-ghost">Sign out</button>
-          </form>
-        </div>
-      {% endif %}
-    </header>
+    {% include '_header.html' %}
 
     {% if error %}
       <div class="home-error">{{ error }}</div>

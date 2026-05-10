@@ -395,6 +395,24 @@ def get_game_stats(game_id):
     }
 
 
+def get_player_with_stats(username):
+    conn = get_db()
+    row = conn.execute(
+        "SELECT a.id, a.username, a.created_at, "
+        "COUNT(DISTINCT p.game_id) as games_played, "
+        "SUM(CASE WHEN g.winner = p.player_index AND g.status = 'done' THEN 1 ELSE 0 END) as wins "
+        "FROM accounts a "
+        "LEFT JOIN players p ON p.account_id = a.id "
+        "LEFT JOIN games g ON g.id = p.game_id "
+        "WHERE a.username = ?",
+        (username,)
+    ).fetchone()
+    conn.close()
+    if not row or row['id'] is None:
+        return None
+    return dict(row)
+
+
 def get_all_players_with_stats():
     conn = get_db()
     rows = conn.execute(

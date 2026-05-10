@@ -8,11 +8,7 @@
   <style>
     body { overflow: auto; }
     .page-wrap { max-width: 600px; margin: 0 auto; padding: 20px 16px; }
-    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-    .page-header h1 { font-size: 1.1rem; letter-spacing: 4px; }
-    .nav-links { display: flex; gap: 16px; font-size: 0.75rem; }
-    .nav-links a { color: #aaa; text-decoration: none; }
-    .nav-links a:hover { color: #ddd; }
+
     .card { background: #161616; border: 1px solid #252525; border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
     .card-header { padding: 10px 16px; border-bottom: 1px solid #222; font-size: 0.6rem; letter-spacing: 3px; color: #555; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
     .total-count { font-size: 0.9rem; color: #888; letter-spacing: 0; }
@@ -27,14 +23,7 @@
 </head>
 <body>
   <div class="page-wrap">
-    <header class="page-header">
-      <h1 class="logo">Squareitory</h1>
-      <nav class="nav-links">
-        <a href="/">Home</a>
-        <a href="/stats">Stats</a>
-        <a href="/games">Games</a>
-      </nav>
-    </header>
+    {% include '_header.html' %}
 
     <div class="card">
       <div class="card-header">
@@ -56,7 +45,7 @@
           {% for p in players %}
           <tr>
             <td style="color:#555;">{{ loop.index }}</td>
-            <td>{{ p.username }}</td>
+            <td><a href="/players/{{ p.username }}" style="color:#ddd;text-decoration:none;">{{ p.username }}</a></td>
             <td>{{ p.games_played or 0 }}</td>
             <td class="wins-val">{{ p.wins or 0 }}</td>
             <td class="losses-val">{{ (p.games_played or 0) - (p.wins or 0) }}</td>

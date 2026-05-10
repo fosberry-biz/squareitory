@@ -8,11 +8,7 @@
   <style>
     body { overflow: auto; }
     .page-wrap { max-width: 600px; margin: 0 auto; padding: 20px 16px; }
-    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-    .page-header h1 { font-size: 1.1rem; letter-spacing: 4px; }
-    .nav-links { display: flex; gap: 16px; font-size: 0.75rem; }
-    .nav-links a { color: #aaa; text-decoration: none; }
-    .nav-links a:hover { color: #ddd; }
+
     .stat-card { background: #161616; border: 1px solid #252525; border-radius: 6px; padding: 20px 24px; margin-bottom: 16px; }
     .stat-label { font-size: 0.6rem; letter-spacing: 3px; color: #555; text-transform: uppercase; margin-bottom: 8px; }
     .stat-number { font-size: 2.8rem; color: #ddd; }
@@ -31,14 +27,7 @@
 </head>
 <body>
   <div class="page-wrap">
-    <header class="page-header">
-      <h1 class="logo">Squareitory</h1>
-      <nav class="nav-links">
-        <a href="/">Home</a>
-        <a href="/games">Games</a>
-        <a href="/players">Players</a>
-      </nav>
-    </header>
+    {% include '_header.html' %}
 
     <div class="stat-card">
       <div class="stat-label">Active games right now</div>

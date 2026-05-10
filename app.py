@@ -173,6 +173,14 @@ def players_page():
     return render_template('players.html', account=_current_account(), players=players)
 
 
+@app.get('/players/<username>')
+def player_detail_page(username):
+    player = db.get_player_with_stats(username)
+    if not player:
+        abort(404)
+    return render_template('player_detail.html', account=_current_account(), player=player)
+
+
 # --- Home / lobby ---
 
 @app.get('/')

@@ -8,11 +8,7 @@
   <style>
     body { overflow: auto; }
     .page-wrap { max-width: 700px; margin: 0 auto; padding: 20px 16px; }
-    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-    .page-header h1 { font-size: 1.1rem; letter-spacing: 4px; }
-    .nav-links { display: flex; gap: 16px; font-size: 0.75rem; }
-    .nav-links a { color: #aaa; text-decoration: none; }
-    .nav-links a:hover { color: #ddd; }
+
     .section-label { font-size: 0.6rem; letter-spacing: 3px; color: #555; text-transform: uppercase; margin-bottom: 12px; }
     .card { background: #161616; border: 1px solid #252525; border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
     table { width: 100%; border-collapse: collapse; }
@@ -35,14 +31,7 @@
 </head>
 <body>
   <div class="page-wrap">
-    <header class="page-header">
-      <h1 class="logo">Squareitory</h1>
-      <nav class="nav-links">
-        <a href="/">Home</a>
-        <a href="/stats">Stats</a>
-        <a href="/players">Players</a>
-      </nav>
-    </header>
+    {% include '_header.html' %}
 
     <div class="section-label">10 longest-running active games</div>
 

@@ -5,18 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Friends — Squareitory</title>
   <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { overflow: auto; display: flex; justify-content: center; padding: 20px 16px; }
+    .home-wrap { width: 100%; }
+  </style>
 </head>
 <body>
   <div class="home-wrap">
-    <header class="home-header">
-      <h1 class="logo"><a href="/">Squareitory</a></h1>
-      <div class="home-account">
-        <span class="acct-name">{{ account.username }}</span>
-        <form method="post" action="/auth/signout" style="display:inline">
-          <button class="btn-ghost">Sign out</button>
-        </form>
-      </div>
-    </header>
+    {% include '_header.html' %}
 
     {% if error %}
       <div class="home-error">{{ error }}</div>
@@ -50,7 +46,7 @@
           <ul class="friends-list">
             {% for f in friends %}
               <li class="friend-row">
-                <span class="friend-name">{{ f.username }}</span>
+                <a href="/players/{{ f.username }}" class="friend-name">{{ f.username }}</a>
                 <span class="friend-code-small">{{ f.friend_code }}</span>
               </li>
             {% endfor %}
