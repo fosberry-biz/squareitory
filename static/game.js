@@ -14,11 +14,24 @@ const PLAYERS = [
 // Indices of players actually in this game (set from first SSE state)
 let activePlayers = PLAYER_COUNT === 2 ? [0, 2] : [0, 1, 2, 3];
 
-let serverState  = null;
-let previewBoard = null;
-let pending      = [];   // actions queued this turn
-let selected     = null; // {r, c} of selected cell
-let logs         = [];
+let serverState    = null;
+let previewBoard   = null;
+let pending        = [];   // actions queued this turn
+let selected       = null; // {r, c} of selected cell
+let logs           = [];
+let _pendingSelect = null; // debounce state for double-click-to-reinforce
+
+function _cancelPendingSelect() {
+  if (_pendingSelect) { clearTimeout(_pendingSelect.timer); _pendingSelect = null; }
+}
+
+// rules panel toggle
+document.getElementById('rules-btn').onclick = () => {
+  document.getElementById('rules-panel').style.display = 'block';
+};
+document.getElementById('rules-close').onclick = () => {
+  document.getElementById('rules-panel').style.display = 'none';
+};
 
 // spectator setup (MY_INDEX === -1 means no token)
 if (MY_INDEX === -1) {
@@ -102,6 +115,39 @@ function applyAction(board, action, player) {
   return { board: null, error: `unknown action: ${action.type}` };
 }
 
+// --- turn flash ---
+
+const _FLASH_COLORS = ['#a93226', '#1f618d', '#1e8449', '#b7950b'];
+
+function showTurnFlash(p, isDone = false, winner = null) {
+  const existing = document.querySelector('.turn-flash');
+  if (existing) existing.remove();
+
+  const div = document.createElement('div');
+  div.className = 'turn-flash';
+
+  if (isDone) {
+    div.style.background = winner !== null ? _FLASH_COLORS[winner] : '#333';
+    div.style.color = winner === 3 ? '#111' : '#fff';
+    div.textContent = winner !== null ? `${PLAYERS[winner].name.toUpperCase()} WINS!` : 'GAME OVER';
+  } else {
+    div.style.background = _FLASH_COLORS[p];
+    div.style.color = p === 3 ? '#111' : '#fff';
+    div.textContent = `${PLAYERS[p].name.toUpperCase()}'S TURN`;
+  }
+
+  document.body.appendChild(div);
+  div.style.opacity = '0';
+  requestAnimationFrame(() => {
+    div.style.transition = 'opacity 0.3s';
+    div.style.opacity = '1';
+    setTimeout(() => {
+      div.style.opacity = '0';
+      setTimeout(() => div.remove(), 300);
+    }, 1200);
+  });
+}
+
 // --- log ---
 
 function logMsg(msg) {
@@ -114,11 +160,17 @@ function logMsg(msg) {
 // --- click handler ---
 
 function click(r, c) {
-  if (!isMyTurn() || actionsLeft() <= 0) return;
+  if (!isMyTurn()) return;
+  if (actionsLeft() <= 0) { logMsg('No actions remaining'); return; }
   const board  = previewBoard;
   const player = MY_INDEX;
   const cell   = board[r][c];
   if (cell.blocked) return;
+
+  // cancel pending select when clicking a different cell
+  if (_pendingSelect && !(_pendingSelect.r === r && _pendingSelect.c === c)) {
+    _cancelPendingSelect();
+  }
 
   if (selected) {
     const { r: sr, c: sc } = selected;
@@ -160,11 +212,40 @@ function click(r, c) {
     selected = null; render(); return;
   }
 
-  // select own stack
-  if (cell.owner === player && cell.n > 0) { selected = { r, c }; render(); return; }
+  // select own stack; double-click/tap on starting-zone cell to reinforce
+  if (cell.owner === player && cell.n > 0) {
+    if (PLAYERS[player].startFn(r, c)) {
+      if (_pendingSelect && _pendingSelect.r === r && _pendingSelect.c === c) {
+        // second click within window — reinforce
+        _cancelPendingSelect();
+        const action = { type: 'place', r, c };
+        const res = applyAction(board, action, player);
+        if (res.error) { logMsg(`Error: ${res.error}`); return; }
+        logMsg(`${PLAYERS[player].name} reinforces (${r},${c}) — stack ${res.board[r][c].n}`);
+        pending.push(action);
+        previewBoard = res.board;
+        selected = null;
+        if (actionsLeft() === 0) submitTurn();
+        else render();
+        return;
+      }
+      // first click — wait to see if double-click arrives
+      _cancelPendingSelect();
+      _pendingSelect = {
+        r, c,
+        timer: setTimeout(() => {
+          _pendingSelect = null;
+          selected = { r, c };
+          render();
+        }, 280)
+      };
+      return;
+    }
+    selected = { r, c }; render(); return;
+  }
 
-  // place on starting edge
-  if (PLAYERS[player].startFn(r, c) && ((cell.owner === null && cell.n === 0) || cell.owner === player)) {
+  // place on empty starting edge cell
+  if (PLAYERS[player].startFn(r, c) && cell.owner === null && cell.n === 0) {
     const action = { type: 'place', r, c };
     const res = applyAction(board, action, player);
     if (res.error) { logMsg(`Error: ${res.error}`); return; }
@@ -227,6 +308,31 @@ async function submitTurn() {
   // SSE will push the new authoritative state
 }
 
+// --- edge bars ---
+
+function updateEdgeBars(state) {
+  const dirs = ['n', 'e', 's', 'w'];
+  for (let p = 0; p < 4; p++) {
+    const bar = document.getElementById(`edge-bar-${dirs[p]}`);
+    if (!bar) continue;
+    const isActive = activePlayers.includes(p);
+    bar.style.visibility = isActive ? '' : 'hidden';
+    if (!isActive) continue;
+
+    const fill = bar.querySelector('.bar-fill');
+    const label = bar.querySelector('.bar-label');
+    const score = state.center_turns[p];
+    const pct = Math.min(100, (score / WIN) * 100);
+
+    fill.style.background = _FLASH_COLORS[p];
+    label.textContent = `${score}/${WIN}`;
+
+    const horiz = p === 0 || p === 2;
+    if (horiz) fill.style.width = pct + '%';
+    else fill.style.height = pct + '%';
+  }
+}
+
 // --- render ---
 
 function render() {
@@ -249,8 +355,17 @@ function render() {
       if (cell.blocked) {
         div.classList.add('blocked');
       } else {
+        // spawn zone tint (shows through when cell is empty)
+        for (let p = 0; p < 4; p++) {
+          if (PLAYERS[p].startFn(r, c)) { div.classList.add(`spawn-p${p}`); break; }
+        }
+
         if (cell.n > 0) {
-          div.classList.add(cell.owner !== null ? PLAYERS[cell.owner].cls : 'pN');
+          if (cell.owner !== null) {
+            div.classList.add(PLAYERS[cell.owner].cls);
+          } else {
+            div.classList.add('pN', 'neutral');
+          }
           const countSpan = document.createElement('span');
           countSpan.className = 'cell-count';
           countSpan.textContent = cell.n;
@@ -269,7 +384,9 @@ function render() {
           badge.textContent = `★${cell.gp}`;
           div.appendChild(badge);
         }
-        if (!selected && myTurn && left > 0 && cell.n === 0 && PLAYERS[MY_INDEX].startFn(r, c))
+        // start-hint on empty cells AND owned occupied cells in starting zone
+        if (!selected && myTurn && left > 0 && PLAYERS[MY_INDEX].startFn(r, c) &&
+            (cell.n === 0 || cell.owner === MY_INDEX))
           div.classList.add('start-hint');
         if (selected && selected.r === r && selected.c === c)
           div.classList.add('selected');
@@ -308,11 +425,8 @@ function render() {
   }
   document.getElementById('status').textContent = txt;
 
-  // tracker — only active players
-  document.getElementById('tracker').innerHTML = activePlayers.map(i => {
-    const p = PLAYERS[i];
-    return `<div class="t-item"><div class="t-dot ${p.cls}"></div>${p.name}: ${state.center_turns[i]}pts/${WIN}</div>`;
-  }).join('');
+  // edge progress bars
+  updateEdgeBars(state);
 
   // submit / undo buttons
   const btn = document.getElementById('submit-btn');
@@ -326,14 +440,25 @@ function render() {
 const es = new EventSource(`/game/${GAME_ID}/stream`);
 
 es.onmessage = e => {
-  serverState  = JSON.parse(e.data);
+  const prevCurPlayer = serverState ? serverState.cur_player : null;
+  const prevStatus    = serverState ? serverState.status : null;
+
+  serverState   = JSON.parse(e.data);
   activePlayers = serverState.player_count === 2 ? [0, 2] : [0, 1, 2, 3];
-  pending      = [];
-  previewBoard = copyBoard(serverState.board);
-  selected     = null;
+  pending       = [];
+  previewBoard  = copyBoard(serverState.board);
+  selected      = null;
+  _cancelPendingSelect();
   render();
 
   const { status, cur_player, winner } = serverState;
+
+  if (status === 'active' && cur_player !== prevCurPlayer) {
+    showTurnFlash(cur_player);
+  } else if (status === 'done' && prevStatus !== 'done') {
+    showTurnFlash(null, true, winner);
+  }
+
   if (status === 'waiting') {
     logMsg('Waiting for more players to join…');
   } else if (status === 'done') {

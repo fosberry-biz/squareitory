@@ -15,8 +15,8 @@ _B  = (True,  0, 0, False, 0)
 _O  = (False, 0, 0, False, 0)
 _X  = (False, 1, 0, False, 0)
 _FX = (False, 1, 1, True,  0)
-_I1 = (False, 0, 0, False, 1)  # middle 4: 1 game point/turn, no cubes
-_I2 = (False, 0, 0, False, 2)  # center: 2 game points/turn, no cubes
+_I1 = (False, 1, 0, False, 1)  # middle 4: 1 game point/turn, 1 neutral defender
+_I2 = (False, 3, 0, False, 2)  # center: 2 game points/turn, 3 neutral defenders
 _N = _E = _S = _W = _O
 
 _LAYOUT = [
