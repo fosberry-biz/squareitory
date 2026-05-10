@@ -1,16 +1,19 @@
 import json
+import os
 import queue
 import subprocess
 import threading
 import time
 import urllib.request
 
-from flask import Flask, Response, abort, jsonify, render_template, request
+from flask import (Flask, Response, abort, jsonify, redirect,
+                   render_template, request, session, url_for)
 
 import db
 import game_logic
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'squareitory-dev-secret-change-in-prod')
 db.init_db()
 
 # SSE: game_id -> [Queue, ...]
@@ -51,31 +54,114 @@ def _public(game):
         'winner': game['winner'],
         'player_count': game['player_count'],
         'players_joined': db.count_players(game['id']),
+        'join_code': game.get('join_code'),
     }
 
 
-# --- Routes ---
+def _current_account():
+    account_id = session.get('account_id')
+    if not account_id:
+        return None
+    return db.get_account(account_id)
+
+
+# --- Auth routes ---
+
+@app.post('/auth/signup')
+def signup():
+    username = (request.form.get('username') or '').strip()
+    password = request.form.get('password') or ''
+    if not username or not password:
+        return redirect(url_for('home', error='Username and password required'))
+    if len(username) < 2 or len(username) > 20:
+        return redirect(url_for('home', error='Username must be 2–20 characters'))
+    account_id, err = db.create_account(username, password)
+    if err == 'username_taken':
+        return redirect(url_for('home', error='Username already taken'))
+    if err:
+        return redirect(url_for('home', error='Signup failed, try again'))
+    session['account_id'] = account_id
+    return redirect(url_for('home'))
+
+
+@app.post('/auth/signin')
+def signin():
+    username = (request.form.get('username') or '').strip()
+    password = request.form.get('password') or ''
+    account = db.get_account_by_username(username)
+    if not account or not db.verify_password(account, password):
+        return redirect(url_for('home', error='Invalid username or password'))
+    session['account_id'] = account['id']
+    return redirect(url_for('home'))
+
+
+@app.post('/auth/signout')
+def signout():
+    session.clear()
+    return redirect(url_for('home'))
+
+
+# --- Friends routes ---
+
+@app.get('/friends')
+def friends_page():
+    account = _current_account()
+    if not account:
+        return redirect(url_for('home'))
+    friends = db.get_friends(account['id'])
+    error = request.args.get('error')
+    msg = request.args.get('msg')
+    return render_template('friends.html', account=account, friends=friends, error=error, msg=msg)
+
+
+@app.post('/friends/add')
+def add_friend():
+    account = _current_account()
+    if not account:
+        return redirect(url_for('home'))
+    code = (request.form.get('friend_code') or '').strip().upper()
+    if not code:
+        return redirect(url_for('friends_page', error='Enter a friend code'))
+    if code == account['friend_code']:
+        return redirect(url_for('friends_page', error="That's your own code"))
+    friend = db.get_account_by_friend_code(code)
+    if not friend:
+        return redirect(url_for('friends_page', error='No account found with that code'))
+    if db.are_friends(account['id'], friend['id']):
+        return redirect(url_for('friends_page', error='Already friends'))
+    db.add_friendship(account['id'], friend['id'])
+    return redirect(url_for('friends_page', msg=f"Added {friend['username']} as a friend"))
+
+
+# --- Home / lobby ---
 
 @app.get('/')
-def lobby():
-    return render_template('lobby.html')
+def home():
+    account = _current_account()
+    error = request.args.get('error')
+    return render_template('lobby.html', account=account, error=error)
 
+
+# --- Game routes ---
 
 @app.post('/game/new')
 def new_game():
     body = request.get_json(silent=True) or {}
     player_count = body.get('player_count', 4)
+    is_public = 1 if body.get('is_public', True) else 0
     if player_count not in (2, 4):
         return jsonify({'error': 'player_count must be 2 or 4'}), 400
+    account = _current_account()
     board = game_logic.make_board()
     center_turns = [0, 0, 0, 0]
-    game_id = db.create_game(board, center_turns, player_count)
-    token = db.add_player(game_id, 0)
-    return jsonify({'game_id': game_id, 'token': token, 'player_index': 0})
+    game_id, join_code = db.create_game(board, center_turns, player_count, is_public)
+    token = db.add_player(game_id, 0, account['id'] if account else None)
+    return jsonify({'game_id': game_id, 'token': token, 'player_index': 0, 'join_code': join_code})
 
 
 @app.post('/game/<game_id>/join')
 def join_game(game_id):
+    account = _current_account()
     game = db.get_game(game_id)
     if not game:
         return jsonify({'error': 'game not found'}), 404
@@ -87,12 +173,39 @@ def join_game(game_id):
         return jsonify({'error': 'game is full'}), 400
     active = game_logic.get_active_players(player_count)
     player_index = active[n]
-    token = db.add_player(game_id, player_index)
+    token = db.add_player(game_id, player_index, account['id'] if account else None)
     if n + 1 == player_count:
         db.update_game(game_id, game['board'], active[0], game['center_turns'], 0, 'active', None)
     game = db.get_game(game_id)
     _broadcast(game_id, _public(game))
-    return jsonify({'token': token, 'player_index': player_index})
+    return jsonify({'game_id': game_id, 'token': token, 'player_index': player_index})
+
+
+@app.post('/game/join-by-code')
+def join_by_code():
+    body = request.get_json(silent=True) or {}
+    code = str(body.get('code', '')).strip()
+    if not code:
+        return jsonify({'error': 'No code provided'}), 400
+    game = db.get_game_by_join_code(code)
+    if not game:
+        return jsonify({'error': 'Game not found — check the code'}), 404
+    account = _current_account()
+    game_id = game['id']
+    if game['status'] != 'waiting':
+        return jsonify({'error': 'Game already started'}), 400
+    n = db.count_players(game_id)
+    player_count = game['player_count']
+    if n >= player_count:
+        return jsonify({'error': 'Game is full'}), 400
+    active = game_logic.get_active_players(player_count)
+    player_index = active[n]
+    token = db.add_player(game_id, player_index, account['id'] if account else None)
+    if n + 1 == player_count:
+        db.update_game(game_id, game['board'], active[0], game['center_turns'], 0, 'active', None)
+    game = db.get_game(game_id)
+    _broadcast(game_id, _public(game))
+    return jsonify({'game_id': game_id, 'token': token, 'player_index': player_index})
 
 
 @app.get('/game/<game_id>')
@@ -142,6 +255,9 @@ def submit_move(game_id):
     db.record_turn(game_id, game['cur_player'], game['turn_number'], actions)
     status = 'done' if winner is not None else 'active'
     db.update_game(game_id, board, next_player, center_turns, game['turn_number'] + 1, status, winner)
+
+    if status == 'done':
+        db.recycle_join_code(game_id)
 
     game = db.get_game(game_id)
     state = _public(game)

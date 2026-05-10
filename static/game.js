@@ -51,10 +51,11 @@ if (MY_INDEX === -1) {
 }
 
 document.getElementById('copy-join-btn').onclick = () => {
-  navigator.clipboard.writeText(window.location.origin + `/?join=${GAME_ID}`);
+  const code = document.getElementById('waiting-join-code').textContent;
+  if (code) navigator.clipboard.writeText(code);
   const btn = document.getElementById('copy-join-btn');
   btn.textContent = 'Copied!';
-  setTimeout(() => { btn.textContent = 'Copy join link'; }, 2000);
+  setTimeout(() => { btn.textContent = 'Copy code'; }, 2000);
 };
 
 // --- helpers ---
@@ -405,7 +406,7 @@ function render() {
   const waitingInfo = document.getElementById('waiting-info');
   if (state.status === 'waiting') {
     waitingInfo.style.display = '';
-    document.getElementById('waiting-game-id').textContent = GAME_ID;
+    document.getElementById('waiting-join-code').textContent = state.join_code || GAME_ID;
   } else {
     waitingInfo.style.display = 'none';
   }

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Friends — Squareitory</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="home-wrap">
+    <header class="home-header">
+      <h1 class="logo"><a href="/">Squareitory</a></h1>
+      <div class="home-account">
+        <span class="acct-name">{{ account.username }}</span>
+        <form method="post" action="/auth/signout" style="display:inline">
+          <button class="btn-ghost">Sign out</button>
+        </form>
+      </div>
+    </header>
+
+    {% if error %}
+      <div class="home-error">{{ error }}</div>
+    {% endif %}
+    {% if msg %}
+      <div class="home-msg">{{ msg }}</div>
+    {% endif %}
+
+    <div class="home-panels">
+
+      <section class="home-panel">
+        <h2>Your friend code</h2>
+        <div class="friend-code-row">
+          <strong class="friend-code large">{{ account.friend_code }}</strong>
+          <button class="btn-ghost" onclick="copyText('{{ account.friend_code }}', this)">Copy</button>
+        </div>
+        <p class="hint">Share this code so others can add you as a friend.</p>
+      </section>
+
+      <section class="home-panel">
+        <h2>Add friend</h2>
+        <form method="post" action="/friends/add" class="code-row">
+          <input type="text" name="friend_code" placeholder="Friend's code" maxlength="6" autocomplete="off" required>
+          <button type="submit" class="btn-primary">Add</button>
+        </form>
+      </section>
+
+      <section class="home-panel">
+        <h2>Friends ({{ friends | length }})</h2>
+        {% if friends %}
+          <ul class="friends-list">
+            {% for f in friends %}
+              <li class="friend-row">
+                <span class="friend-name">{{ f.username }}</span>
+                <span class="friend-code-small">{{ f.friend_code }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="hint">No friends yet. Add some using their friend code.</p>
+        {% endif %}
+      </section>
+
+    </div>
+  </div>
+
+  <script>
+    function copyText(text, btn) {
+      navigator.clipboard.writeText(text);
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 2000);
+    }
+  </script>
+</body>
+</html>
